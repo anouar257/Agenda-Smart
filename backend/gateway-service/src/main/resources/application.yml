@@ -1,0 +1,50 @@
+server:
+  port: 8088
+
+spring:
+  application:
+    name: gateway-service
+  cloud:
+    gateway:
+      discovery:
+        locator:
+          enabled: true
+          lower-case-service-id: true
+      # Global CORS Configuration
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOrigins: "*"
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - OPTIONS
+            allowedHeaders:
+              - "*"
+            exposedHeaders:
+              - "Authorization"
+            allowCredentials: false
+      routes:
+        - id: auth-service
+          uri: http://auth-service:8089
+          predicates:
+            - Path=/api/auth/**
+        - id: ai-service
+          uri: http://ai-service:8081
+          predicates:
+            - Path=/api/ai/**
+          filters:
+            - JwtAuthenticationFilter
+        - id: calendar-service
+          uri: http://calendar-service:8082
+          predicates:
+            - Path=/api/calendar/**
+          filters:
+            - JwtAuthenticationFilter
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://localhost:8761/eureka/}

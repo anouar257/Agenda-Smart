@@ -1,0 +1,25 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: ai-service
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+    properties:
+      spring.json.type.mapping: event:com.agenda.ai.EventDto
+
+# OpenRouter API Configuration
+openrouter:
+  api-key: ${OPENROUTER_API_KEY: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}
+  model: ${OPENROUTER_MODEL:mistralai/mistral-7b-instruct:free}
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://localhost:8761/eureka/}
+    register-with-eureka: true
+    fetch-registry: true

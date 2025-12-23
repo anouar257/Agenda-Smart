@@ -1,0 +1,68 @@
+<div class="min-h-screen bg-gray-100 p-8">
+  <div class="max-w-4xl mx-auto">
+    <!-- Header -->
+    <header class="mb-8 text-center">
+      <h1 class="text-4xl font-bold text-blue-600 mb-2">Smart AI Agenda</h1>
+      <p class="text-gray-600">Type your plan naturally, and let AI handle the rest.</p>
+    </header>
+
+    <!-- Input Section -->
+    <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+      <div class="flex gap-4">
+        <input 
+          type="text" 
+          [ngModel]="userInput()" 
+          (ngModelChange)="userInput.set($event)"
+          (keyup.enter)="submitToAi()"
+          placeholder="e.g. 'Dentist appointment tomorrow at 10 AM'"
+          class="flex-1 p-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg"
+        >
+        <button 
+          (click)="submitToAi()"
+          [disabled]="isLoading()"
+          class="bg-blue-600 text-white px-8 py-4 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors font-semibold"
+        >
+          {{ isLoading() ? 'Processing...' : 'Add Event' }}
+        </button>
+      </div>
+    </div>
+
+    <!-- Events List -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div *ngFor="let event of events()" class="bg-white rounded-lg shadow-sm border-l-4 border-blue-500 p-4 hover:shadow-md transition-shadow">
+        <div class="flex justify-between items-start mb-2">
+          <h3 class="font-bold text-xl text-gray-800">{{ event.title }}</h3>
+          <span 
+            class="text-xs px-2 py-1 rounded-full text-white"
+            [ngClass]="{
+              'bg-red-500': event.priority === 'HIGH',
+              'bg-yellow-500': event.priority === 'MEDIUM',
+              'bg-green-500': event.priority === 'LOW'
+            }"
+          >
+            {{ event.priority }}
+          </span>
+        </div>
+        
+        <div class="space-y-1 text-gray-600">
+          <div class="flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+            <span>{{ event.startDate }}</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            <span>{{ event.startTime }}</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path></svg>
+            <span class="uppercase">{{ event.category }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div *ngIf="events().length === 0" class="text-center text-gray-400 mt-12">
+      <p>No events yet. Try adding one!</p>
+    </div>
+  </div>
+</div>
