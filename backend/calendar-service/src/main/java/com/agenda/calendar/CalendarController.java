@@ -4,6 +4,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @RestController
@@ -15,6 +16,15 @@ public class CalendarController {
 
     @Autowired
     private KafkaNotificationProducer kafkaProducer;
+
+    // Get upcoming events (within next 24 hours) - for notification service
+    @GetMapping("/upcoming")
+    public List<EventEntity> getUpcomingEvents() {
+        LocalDate today = LocalDate.now();
+        LocalDate tomorrow = today.plusDays(1);
+        System.out.println("[Calendar] Getting upcoming events from " + today + " to " + tomorrow);
+        return eventRepository.findUpcomingEvents(today.toString(), tomorrow.toString());
+    }
 
     // Get all events for current user (filtered by userId from JWT)
     @GetMapping

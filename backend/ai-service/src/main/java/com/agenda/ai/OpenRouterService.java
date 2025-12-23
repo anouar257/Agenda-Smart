@@ -43,8 +43,23 @@ public class OpenRouterService {
 
         try {
             String systemPrompt = String.format("""
-                    Extract event from user text. Return ONLY valid JSON:
-                    {"title":"...","startDate":"YYYY-MM-DD","startTime":"HH:mm","category":"WORK","priority":"MEDIUM"}
+                    Analyze user text and determine the action and event details. Return ONLY valid JSON:
+                    {
+                      "action": "CREATE" or "UPDATE" or "DELETE",
+                      "title": "event title",
+                      "searchTitle": "title to search for UPDATE/DELETE (null for CREATE)",
+                      "startDate": "YYYY-MM-DD",
+                      "startTime": "HH:mm",
+                      "category": "WORK",
+                      "priority": "MEDIUM"
+                    }
+                    
+                    Rules:
+                    - "modifier", "changer", "décaler", "update" -> action = UPDATE
+                    - "supprimer", "annuler", "enlever", "delete", "cancel" -> action = DELETE
+                    - Otherwise -> action = CREATE
+                    - For UPDATE/DELETE, searchTitle = the event to find
+                    
                     Today: %s, Tomorrow: %s
                     Categories: WORK, HEALTH, SPORT, SOCIAL
                     """, today, tomorrow);
@@ -113,9 +128,43 @@ public class OpenRouterService {
         EventDto event = new EventDto();
         String lower = text.toLowerCase();
 
-        // Extract title (first meaningful word)
+        // Detect action - use contains for reliable matching
+        boolean isDelete = lower.contains("suppr") || lower.contains("annul") || lower.contains("enlever")
+                || lower.contains("delete") || lower.contains("cancel") || lower.contains("remove");
+        boolean isUpdate = lower.contains("modif") || lower.contains("chang") || lower.contains("décal")
+                || lower.contains("update") || lower.contains("edit") || lower.contains("move")
+                || lower.contains("déplac") || lower.contains("report");
+        
+        System.out.println("[AI] Detecting action from: '" + lower + "' -> isDelete=" + isDelete + ", isUpdate=" + isUpdate);
+        
+        if (isDelete) {
+            event.setAction("DELETE");
+        } else if (isUpdate) {
+            event.setAction("UPDATE");
+        } else {
+            event.setAction("CREATE");
+        }
+
+        // Extract title - look for key nouns (skip action words and common words)
         String[] words = text.split("\\s+");
-        event.setTitle(words.length > 0 ? capitalize(words[0]) : "Event");
+        String foundTitle = null;
+        for (String word : words) {
+            String w = word.toLowerCase();
+            // Skip action words and common words - use regex pattern
+            if (w.matches("(suppr.*|annul.*|modif.*|chang.*|décal.*|déplac.*|report.*|le|la|les|l|mon|ma|mes|un|une|des|rdv|rendez-vous|rendez|vous|à|a|de|du|pour|et|en)")) {
+                continue;
+            }
+            if (w.length() > 2) {
+                foundTitle = capitalize(word);
+                break;
+            }
+        }
+        event.setTitle(foundTitle != null ? foundTitle : "Event");
+        
+        // For UPDATE/DELETE, set searchTitle
+        if (!"CREATE".equals(event.getAction())) {
+            event.setSearchTitle(event.getTitle());
+        }
 
         // Detect date
         if (lower.contains("demain") || lower.contains("tomorrow")) {
@@ -134,7 +183,7 @@ public class OpenRouterService {
         }
 
         // Detect category
-        if (lower.contains("sport") || lower.contains("gym") || lower.contains("course") || lower.contains("foot")) {
+        if (lower.contains("sport") || lower.contains("gym") || lower.contains("course") || lower.contains("foot") || lower.contains("match")) {
             event.setCategory("SPORT");
         } else if (lower.contains("dentiste") || lower.contains("médecin") || lower.contains("docteur")
                 || lower.contains("doctor")) {
@@ -147,6 +196,7 @@ public class OpenRouterService {
         }
 
         event.setPriority("MEDIUM");
+        System.out.println("[AI] Fallback parsed: action=" + event.getAction() + ", title=" + event.getTitle() + ", searchTitle=" + event.getSearchTitle());
         return event;
     }
 

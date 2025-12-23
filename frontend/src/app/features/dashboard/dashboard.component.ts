@@ -140,6 +140,10 @@ import { NotificationService } from '../../core/services/notification.service';
                   <span class="event-date">{{ event.start }} {{ event.end ? '- ' + event.end : '' }}</span>
                 </div>
                 <span class="event-category">{{ event.category }}</span>
+                <div class="event-actions">
+                  <button class="action-btn edit-btn" (click)="editEvent(event)" title="Modifier">🖊️</button>
+                  <button class="action-btn delete-btn" (click)="deleteEvent(event)" title="Supprimer">🗑️</button>
+                </div>
               </div>
             </div>
           </section>
@@ -254,10 +258,10 @@ import { NotificationService } from '../../core/services/notification.service';
           </div>
         </div>
 
-        <!-- Create Event Modal -->
+        <!-- Create/Edit Event Modal -->
         <div class="modal-overlay" *ngIf="showCreateModal()" (click)="closeModal()">
           <div class="modal-content glass-card" (click)="$event.stopPropagation()">
-            <h2>Nouvel événement</h2>
+            <h2>{{ editingEventId ? 'Modifier événement' : 'Nouvel événement' }}</h2>
             <p class="modal-date">📅 {{ selectedDate() }}</p>
             
             <div class="form-group">
@@ -282,7 +286,7 @@ import { NotificationService } from '../../core/services/notification.service';
             
             <div class="modal-actions">
               <button class="btn-secondary" (click)="closeModal()">Annuler</button>
-              <button class="btn-primary" (click)="createEventManually()">Créer</button>
+              <button class="btn-primary" (click)="saveEventModal()">{{ editingEventId ? 'Modifier' : 'Créer' }}</button>
             </div>
           </div>
         </div>
@@ -453,6 +457,19 @@ import { NotificationService } from '../../core/services/notification.service';
       font-weight: 500;
       border-radius: 1rem;
     }
+    
+    .event-actions { display: flex; gap: 0.5rem; margin-left: 0.5rem; }
+    .action-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 0.5rem;
+      border-radius: 0.5rem;
+      font-size: 1rem;
+      transition: all 0.2s;
+    }
+    .edit-btn:hover { background: rgba(99, 102, 241, 0.2); }
+    .delete-btn:hover { background: rgba(239, 68, 68, 0.2); }
 
     /* Calendar Full View */
     .calendar-fullscreen { padding: 1.5rem; min-height: 600px; }
@@ -549,6 +566,7 @@ export class DashboardComponent {
   newEventTitle = '';
   newEventTime = '';
   newEventCategory = 'WORK';
+  editingEventId: string | null = null;
 
   get greeting(): string {
     const hour = new Date().getHours();
@@ -578,16 +596,16 @@ export class DashboardComponent {
     this.newEventTitle = '';
     this.newEventTime = '';
     this.newEventCategory = 'WORK';
+    this.editingEventId = null;
   }
 
-  createEventManually(): void {
+  saveEventModal(): void {
     if (!this.newEventTitle.trim()) {
       this.toast.show('Entrez un titre', 'info');
       return;
     }
 
-    const event = {
-      id: Date.now().toString(),
+    const eventData = {
       title: this.newEventTitle,
       start: this.selectedDate(),
       end: this.newEventTime || undefined,
@@ -595,18 +613,43 @@ export class DashboardComponent {
       priority: 'MEDIUM' as const
     };
 
-    // Save to database and wait for response
-    this.agenda.saveEvent(event).subscribe({
-      next: () => {
-        this.toast.show('✅ Événement créé!', 'success');
-        this.closeModal();
-        // Reload events to refresh calendar
-        this.agenda.loadEvents();
-      },
-      error: () => {
-        this.toast.show('Erreur lors de la sauvegarde', 'error');
-      }
-    });
+    if (this.editingEventId) {
+      // UPDATE existing event
+      this.agenda.updateEvent(this.editingEventId, eventData);
+      this.toast.show('📝 Événement modifié!', 'success');
+      this.closeModal();
+      this.agenda.loadEvents();
+    } else {
+      // CREATE new event
+      const event = { id: Date.now().toString(), ...eventData };
+      this.agenda.saveEvent(event).subscribe({
+        next: () => {
+          this.toast.show('✅ Événement créé!', 'success');
+          this.closeModal();
+          this.agenda.loadEvents();
+        },
+        error: () => {
+          this.toast.show('Erreur lors de la sauvegarde', 'error');
+        }
+      });
+    }
+  }
+
+
+  editEvent(event: any): void {
+    this.selectedDate.set(event.start);
+    this.newEventTitle = event.title;
+    this.newEventTime = event.end || '';
+    this.newEventCategory = event.category || 'WORK';
+    this.editingEventId = event.id;
+    this.showCreateModal.set(true);
+  }
+
+  deleteEvent(event: any): void {
+    if (confirm(`Supprimer "${event.title}" ?`)) {
+      this.agenda.removeEvent(event.id);
+      this.toast.show('🗑️ Événement supprimé', 'success');
+    }
   }
 
   logout(): void {

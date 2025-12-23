@@ -66,6 +66,51 @@ export class AgendaService {
             timeout(this.AI_TIMEOUT),
             switchMap(aiResponse => {
                 console.log('[Agenda] AI Response:', aiResponse);
+                const action = aiResponse.action || 'CREATE';
+
+                // Handle DELETE action
+                if (action === 'DELETE') {
+                    const searchTitle = aiResponse.searchTitle || aiResponse.title;
+                    const eventToDelete = this.findEventByTitle(searchTitle);
+                    if (eventToDelete) {
+                        return this.http.delete(`${this.CALENDAR_URL}/${eventToDelete.id}`).pipe(
+                            tap(() => {
+                                this._events.update(current => current.filter(e => e.id !== eventToDelete.id));
+                                console.log('[Agenda] Event deleted via AI:', eventToDelete.title);
+                            })
+                        );
+                    } else {
+                        throw new Error(`Événement "${searchTitle}" non trouvé`);
+                    }
+                }
+
+                // Handle UPDATE action
+                if (action === 'UPDATE') {
+                    const searchTitle = aiResponse.searchTitle || aiResponse.title;
+                    const eventToUpdate = this.findEventByTitle(searchTitle);
+                    if (eventToUpdate) {
+                        const updateData = {
+                            title: aiResponse.title || eventToUpdate.title,
+                            startDate: aiResponse.startDate || eventToUpdate.start,
+                            startTime: aiResponse.startTime || eventToUpdate.end,
+                            category: aiResponse.category || eventToUpdate.category,
+                            priority: aiResponse.priority || eventToUpdate.priority
+                        };
+                        return this.http.put<any>(`${this.CALENDAR_URL}/${eventToUpdate.id}`, updateData).pipe(
+                            tap(updated => {
+                                const mapped = this.mapBackendEvent(updated);
+                                this._events.update(current =>
+                                    current.map(e => e.id === eventToUpdate.id ? mapped : e)
+                                );
+                                console.log('[Agenda] Event updated via AI:', mapped);
+                            })
+                        );
+                    } else {
+                        throw new Error(`Événement "${searchTitle}" non trouvé`);
+                    }
+                }
+
+                // Handle CREATE action (default)
                 const eventToSave = {
                     title: aiResponse.title || text,
                     startDate: aiResponse.startDate || new Date().toISOString().split('T')[0],
@@ -73,17 +118,18 @@ export class AgendaService {
                     category: aiResponse.category || 'WORK',
                     priority: aiResponse.priority || 'MEDIUM'
                 };
-                console.log('[Agenda] Saving event:', eventToSave);
-                return this.http.post<any>(this.CALENDAR_URL, eventToSave);
-            }),
-            tap(savedEvent => {
-                console.log('[Agenda] Event saved:', savedEvent);
-                const newEvent = this.mapBackendEvent(savedEvent);
-                this._events.update(current => [...current, newEvent]);
+                console.log('[Agenda] Creating event:', eventToSave);
+                return this.http.post<any>(this.CALENDAR_URL, eventToSave).pipe(
+                    tap(savedEvent => {
+                        console.log('[Agenda] Event created:', savedEvent);
+                        const newEvent = this.mapBackendEvent(savedEvent);
+                        this._events.update(current => [...current, newEvent]);
+                    })
+                );
             }),
             catchError(err => {
                 console.error('[Agenda] Error:', err);
-                let errorMsg = 'Service indisponible';
+                let errorMsg = err.message || 'Service indisponible';
                 if (err.name === 'TimeoutError') {
                     errorMsg = 'L\'IA met trop de temps (>2min)';
                 } else if (err.status === 401) {
@@ -131,9 +177,39 @@ export class AgendaService {
         this.http.delete(`${this.CALENDAR_URL}/${id}`).subscribe({
             next: () => {
                 this._events.update(current => current.filter(e => e.id !== id));
+                console.log('[Agenda] Event deleted:', id);
             },
             error: err => console.error('[Agenda] Delete error:', err)
         });
+    }
+
+    updateEvent(id: string, event: Partial<CalendarEvent>): void {
+        const eventToUpdate = {
+            title: event.title,
+            startDate: event.start,
+            startTime: event.end || null,
+            category: event.category || 'WORK',
+            priority: event.priority || 'MEDIUM',
+            description: event.aiSummary
+        };
+
+        this.http.put<any>(`${this.CALENDAR_URL}/${id}`, eventToUpdate).subscribe({
+            next: (updatedEvent) => {
+                const mapped = this.mapBackendEvent(updatedEvent);
+                this._events.update(current =>
+                    current.map(e => e.id === id ? mapped : e)
+                );
+                console.log('[Agenda] Event updated:', mapped);
+            },
+            error: err => console.error('[Agenda] Update error:', err)
+        });
+    }
+
+    findEventByTitle(title: string): CalendarEvent | undefined {
+        const lower = title.toLowerCase();
+        return this._events().find(e =>
+            e.title.toLowerCase().includes(lower)
+        );
     }
 
     private mapBackendEvent(e: any): CalendarEvent {
