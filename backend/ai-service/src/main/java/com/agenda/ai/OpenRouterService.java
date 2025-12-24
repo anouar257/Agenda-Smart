@@ -166,8 +166,16 @@ public class OpenRouterService {
             event.setSearchTitle(event.getTitle());
         }
 
-        // Detect date
-        if (lower.contains("demain") || lower.contains("tomorrow")) {
+        // Detect date - check for explicit date format first (DD/MM/YYYY or DD-MM-YYYY)
+        java.util.regex.Pattern datePattern = java.util.regex.Pattern.compile("(\\d{1,2})[/\\-](\\d{1,2})[/\\-](\\d{4})");
+        java.util.regex.Matcher dateMatcher = datePattern.matcher(text);
+        if (dateMatcher.find()) {
+            int day = Integer.parseInt(dateMatcher.group(1));
+            int month = Integer.parseInt(dateMatcher.group(2));
+            int year = Integer.parseInt(dateMatcher.group(3));
+            event.setStartDate(String.format("%04d-%02d-%02d", year, month, day));
+            System.out.println("[AI] Explicit date detected: " + event.getStartDate());
+        } else if (lower.contains("demain") || lower.contains("tomorrow")) {
             event.setStartDate(LocalDate.now().plusDays(1).toString());
         } else {
             event.setStartDate(today);
